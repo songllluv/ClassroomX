@@ -1,3 +1,4 @@
+
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
@@ -7,14 +8,12 @@ import '../../models/window_info.dart';
 
 /// Windows 窗口 API 封装。
 ///
-/// 这里只处理 Windows API，不包含任何 UI 代码。
+/// 负责调用 Win32 API 获取窗口信息，不处理 UI。
 class WindowApi {
   /// 获取当前所有可见且具有标题的顶层窗口。
   List<WindowInfo> enumerateWindows() {
     final windows = <WindowInfo>[];
 
-    // EnumWindows 要求传入一个原生回调函数。
-    // isolateLocal 表示该回调在当前 Dart isolate 中执行。
     final callback = NativeCallable<WNDENUMPROC>.isolateLocal((
       Pointer hWnd,
       int lParam,
@@ -22,32 +21,62 @@ class WindowApi {
       final hwnd = HWND(hWnd);
 
       // 忽略不可见窗口。
-      if (!IsWindowVisible(hwnd)) {
-        return TRUE;
-      }
-
-      // 获取标题长度。
-      final length = GetWindowTextLength(hwnd).value;
+      if (!IsWindowVisible(hwnd)) return TRUE;
 
       // 忽略没有标题的窗口。
-      if (length <= 0) {
-        return TRUE;
-      }
+      final length = GetWindowTextLength(hwnd).value;
+      if (length <= 0) return TRUE;
 
-      // 为窗口标题分配临时内存。
       using((arena) {
-        final buffer = arena.pwstrBuffer(length + 1);
+        // 获取窗口标题。
+        final titleBuffer = arena.pwstrBuffer(length + 1);
+        final titleLength = GetWindowText(
+          hwnd,
+          titleBuffer,
+          length + 1,
+        );
 
-        final result = GetWindowText(hwnd, buffer, length + 1);
+        if (titleLength.value <= 0) return;
 
-        if (result.value > 0) {
-          windows.add(
-            WindowInfo(handle: hWnd.address, title: buffer.toDartString()),
-          );
+        // 获取进程 PID。
+        final processIdPointer = arena<Uint32>();
+        GetWindowThreadProcessId(hwnd, processIdPointer);
+        final processId = processIdPointer.value;
+
+        // 获取窗口矩形。
+        final rectPointer = arena<RECT>();
+        final rectResult = GetWindowRect(hwnd, rectPointer);
+
+        var x = 0;
+        var y = 0;
+        var width = 0;
+        var height = 0;
+
+        if (rectResult.value) {
+          final rect = rectPointer.ref;
+
+          x = rect.left;
+          y = rect.top;
+          width = rect.right - rect.left;
+          height = rect.bottom - rect.top;
         }
+
+        // 保存窗口信息快照。
+        windows.add(
+          WindowInfo(
+            handle: hWnd.address,
+            title: titleBuffer.toDartString(),
+            processId: processId,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            isMinimized: IsIconic(hwnd),
+            isMaximized: IsZoomed(hwnd),
+          ),
+        );
       });
 
-      // TRUE 表示继续枚举下一个窗口。
       return TRUE;
     }, exceptionalReturn: 0);
 

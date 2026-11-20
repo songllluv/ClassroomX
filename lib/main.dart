@@ -298,6 +298,6 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildPlaceholder() {
-    return const Center(child: Text('功能开发中'));
+    return const Center(child: Text('功能开发中……'));
   }
 }
