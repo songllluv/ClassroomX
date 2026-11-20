@@ -34,17 +34,50 @@ class WindowApi {
         return TRUE;
       }
 
-      // 为窗口标题分配临时内存。
       using((arena) {
-        final buffer = arena.pwstrBuffer(length + 1);
+        // 获取窗口标题。
+        final titleBuffer = arena.pwstrBuffer(length + 1);
+        final titleLength = GetWindowText(hwnd, titleBuffer, length + 1);
 
-        final result = GetWindowText(hwnd, buffer, length + 1);
-
-        if (result.value > 0) {
-          windows.add(
-            WindowInfo(handle: hWnd.address, title: buffer.toDartString()),
-          );
+        if (titleLength.value <= 0) {
+          return;
         }
+
+        // 获取所属进程 PID。
+        final processIdPointer = arena<Uint32>();
+        GetWindowThreadProcessId(hwnd, processIdPointer);
+        final processId = processIdPointer.value;
+
+        // 获取窗口外框坐标和尺寸。
+        final rectPointer = arena<RECT>();
+        final rectResult = GetWindowRect(hwnd, rectPointer);
+
+        var x = 0;
+        var y = 0;
+        var width = 0;
+        var height = 0;
+
+        if (rectResult.value != 0) {
+          final rect = rectPointer.ref;
+          x = rect.left;
+          y = rect.top;
+          width = rect.right - rect.left;
+          height = rect.bottom - rect.top;
+        }
+
+        windows.add(
+          WindowInfo(
+            handle: hWnd.address,
+            title: titleBuffer.toDartString(),
+            processId: processId,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            isMinimized: IsIconic(hwnd).value != 0,
+            isMaximized: IsZoomed(hwnd).value != 0,
+          ),
+        );
       });
 
       // TRUE 表示继续枚举下一个窗口。
