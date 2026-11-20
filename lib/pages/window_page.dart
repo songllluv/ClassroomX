@@ -1,20 +1,27 @@
-
+import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 
 import '../models/window_info.dart';
 import '../services/window_service.dart';
+import '../services/window_hotkey_controller.dart';
 
 class WindowPage extends StatefulWidget {
-  const WindowPage({super.key});
+  const WindowPage({
+    super.key,
+    required this.controller,
+  });
+
+  final WindowHotkeyController controller;
 
   @override
   State<WindowPage> createState() => _WindowPageState();
 }
 
 class _WindowPageState extends State<WindowPage> {
-  final WindowService _service = WindowService();
+  WindowHotkeyController get _controller => widget.controller;
+  WindowService get _service => _controller.service;
   final TextEditingController _searchController = TextEditingController();
-  final Map<String, int> _opacityValues = {};
+  Timer? _refreshTimer;
 
   List<WindowInfo> _windows = [];
   bool _loading = false;
@@ -23,13 +30,28 @@ class _WindowPageState extends State<WindowPage> {
   @override
   void initState() {
     super.initState();
+
+    _controller.addListener(_onControllerChanged);
+
     _refresh();
+    _refreshTimer = Timer.periodic(
+      const Duration(milliseconds: 160),
+      (_) => _refresh(),
+    );
+  }
+
+  void _onControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _searchController.dispose();
     super.dispose();
+    _refreshTimer?.cancel();
   }
 
   void _refresh() {
@@ -273,9 +295,8 @@ class _WindowPageState extends State<WindowPage> {
 
   Widget _buildWindowCard(WindowInfo window) {
     final statusColor = _statusColor(window);
-    final key = '${window.handle}:${window.processId}';
-    final modified = _service.isModified(window);
-    final opacity = _opacityValues[key] ?? 100;
+    final modified = _controller.isModified(window);
+    final opacity = _controller.opacityFor(window);
 
     return Card(
       color: Colors.white,
@@ -465,31 +486,28 @@ class _WindowPageState extends State<WindowPage> {
     );
   }
   Future<void> _showOpacityDialog(WindowInfo window) async {
-    final key = '${window.handle}:${window.processId}';
-    final controller = TextEditingController(
-      text: '${_opacityValues[key] ?? 100}',
+    final textController = TextEditingController(
+      text: '${_controller.opacityFor(window)}',
     );
 
-    var opacity = _opacityValues[key] ?? 100;
-    String? error;
+    var opacity = _controller.opacityFor(window);
 
     void apply(int value, StateSetter setDialogState) {
       if (value < 0 || value > 100) {
-        setDialogState(() => error = '透明度必须在 0～100 之间');
+        setDialogState(() => _error = '透明度必须在 0～100 之间');
         return;
       }
 
       try {
-        _service.setOpacity(window, value);
-        setState(() => _opacityValues[key] = value);
+        _controller.setOpacity(window, value);
 
         setDialogState(() {
           opacity = value;
-          error = null;
-          controller.text = '$value';
+          _error = null;
+          textController.text = '$value';
         });
       } catch (e) {
-        setDialogState(() => error = e.toString());
+        setDialogState(() => _error = e.toString());
       }
     }
 
@@ -547,7 +565,7 @@ class _WindowPageState extends State<WindowPage> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: TextField(
-                            controller: controller,
+                            controller: textController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                               suffixText: '%',
@@ -558,7 +576,7 @@ class _WindowPageState extends State<WindowPage> {
                               final value = int.tryParse(text);
                               if (value == null) {
                                 setDialogState(
-                                  () => error = '请输入有效整数',
+                                  () => _error = '请输入有效整数',
                                 );
                               } else {
                                 apply(value, setDialogState);
@@ -571,11 +589,11 @@ class _WindowPageState extends State<WindowPage> {
                           tooltip: '应用',
                           onPressed: () {
                             final value =
-                                int.tryParse(controller.text);
+                                int.tryParse(textController.text);
 
                             if (value == null) {
                               setDialogState(
-                                () => error = '请输入有效整数',
+                                () => _error = '请输入有效整数',
                               );
                             } else {
                               apply(value, setDialogState);
@@ -586,10 +604,10 @@ class _WindowPageState extends State<WindowPage> {
                       ],
                     ),
 
-                    if (error != null) ...[
+                    if (_error != null) ...[
                       const SizedBox(height: 12),
                       Text(
-                        error!,
+                        _error!,
                         style: const TextStyle(
                           color: Colors.red,
                           fontSize: 12,
@@ -612,15 +630,14 @@ class _WindowPageState extends State<WindowPage> {
                 TextButton.icon(
                   onPressed: () {
                     try {
-                      _service.restore(window);
-                      setState(() => _opacityValues.remove(key));
+                      _controller.restore(window);
 
                       Navigator.pop(dialogContext);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('已恢复窗口原始状态')),
                       );
                     } catch (e) {
-                      setDialogState(() => error = e.toString());
+                      setDialogState(() => _error = e.toString());
                     }
                   },
                   icon: const Icon(Icons.restart_alt),
@@ -637,6 +654,6 @@ class _WindowPageState extends State<WindowPage> {
       },
     );
 
-    controller.dispose();
+    textController.dispose();
   }
 }

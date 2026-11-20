@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'pages/window_page.dart';
+import 'services/window_hotkey_controller.dart';
 
 void main() {
   runApp(const ClassroomXApp());
@@ -51,6 +52,21 @@ class _MainPageState extends State<MainPage> {
     Icons.memory_rounded,
     Icons.settings_rounded,
   ];
+
+  final WindowHotkeyController _hotkeyController =
+    WindowHotkeyController();
+
+  @override
+  void initState() {
+    super.initState();
+    _hotkeyController.initialize();
+  }
+
+  @override
+  void dispose() {
+    _hotkeyController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +279,7 @@ class _MainPageState extends State<MainPage> {
         return _buildHome();
 
       case 1:
-        return const WindowPage();
+        return WindowPage(controller: _hotkeyController);
 
       default:
         return _buildPlaceholderPage();
