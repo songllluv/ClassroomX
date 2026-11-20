@@ -43,7 +43,7 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int selectedIndex = 0;
 
-  final pages = const ['概览', '窗口管理', '显示控制', '系统信息', '设置'];
+  final pages = const ['概览', '窗口管理', '广播管理', '进程管理', '设置'];
 
   final icons = const [
     Icons.dashboard_rounded,
