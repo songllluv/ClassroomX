@@ -14,6 +14,7 @@ class WindowPage extends StatefulWidget {
 class _WindowPageState extends State<WindowPage> {
   final WindowService _service = WindowService();
   final TextEditingController _searchController = TextEditingController();
+  final Map<String, int> _opacityValues = {};
 
   List<WindowInfo> _windows = [];
   bool _loading = false;
@@ -272,6 +273,9 @@ class _WindowPageState extends State<WindowPage> {
 
   Widget _buildWindowCard(WindowInfo window) {
     final statusColor = _statusColor(window);
+    final key = '${window.handle}:${window.processId}';
+    final modified = _service.isModified(window);
+    final opacity = _opacityValues[key] ?? 100;
 
     return Card(
       color: Colors.white,
@@ -281,88 +285,95 @@ class _WindowPageState extends State<WindowPage> {
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFECEEF2)),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _showDetails(window),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 标题与状态
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEBF1FF),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.window,
-                      color: Color(0xFF4778F5),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEBF1FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.window,
+                    color: Color(0xFF4778F5),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    window.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      window.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _windowStatus(window),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _windowStatus(window),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
 
-              const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
-              // 基础属性
-              Wrap(
-                spacing: 24,
-                runSpacing: 10,
-                children: [
-                  _propertyItem('PID', '${window.processId}'),
-                  _propertyItem('HWND', window.handleText),
-                  _propertyItem(
-                    '位置',
-                    '(${window.x}, ${window.y})',
+            Wrap(
+              spacing: 24,
+              runSpacing: 10,
+              children: [
+                _propertyItem('PID', '${window.processId}'),
+                _propertyItem('HWND', window.handleText),
+                _propertyItem('位置', '(${window.x}, ${window.y})'),
+                _propertyItem(
+                  '尺寸',
+                  '${window.width} × ${window.height}',
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                if (modified) ...[
+                  const Icon(
+                    Icons.opacity,
+                    size: 16,
+                    color: Colors.blue,
                   ),
-                  _propertyItem(
-                    '尺寸',
-                    '${window.width} × ${window.height}',
+                  const SizedBox(width: 5),
+                  Text(
+                    '透明度：$opacity%',
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 12,
+                    ),
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
+                ] else ...[
                   const Icon(
                     Icons.info_outline,
                     size: 15,
@@ -370,22 +381,29 @@ class _WindowPageState extends State<WindowPage> {
                   ),
                   const SizedBox(width: 6),
                   const Text(
-                    '点击查看详细信息',
+                    '窗口未修改',
                     style: TextStyle(
                       color: Colors.grey,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
-                  const Spacer(),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey,
-                    size: 18,
-                  ),
                 ],
-              ),
-            ],
-          ),
+
+                const Spacer(),
+
+                TextButton(
+                  onPressed: () => _showDetails(window),
+                  child: const Text('详情'),
+                ),
+                const SizedBox(width: 6),
+                FilledButton.tonalIcon(
+                  onPressed: () => _showOpacityDialog(window),
+                  icon: const Icon(Icons.opacity, size: 17),
+                  label: const Text('透明度'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -445,5 +463,180 @@ class _WindowPageState extends State<WindowPage> {
         ],
       ),
     );
+  }
+  Future<void> _showOpacityDialog(WindowInfo window) async {
+    final key = '${window.handle}:${window.processId}';
+    final controller = TextEditingController(
+      text: '${_opacityValues[key] ?? 100}',
+    );
+
+    var opacity = _opacityValues[key] ?? 100;
+    String? error;
+
+    void apply(int value, StateSetter setDialogState) {
+      if (value < 0 || value > 100) {
+        setDialogState(() => error = '透明度必须在 0～100 之间');
+        return;
+      }
+
+      try {
+        _service.setOpacity(window, value);
+        setState(() => _opacityValues[key] = value);
+
+        setDialogState(() {
+          opacity = value;
+          error = null;
+          controller.text = '$value';
+        });
+      } catch (e) {
+        setDialogState(() => error = e.toString());
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('窗口透明度'),
+              content: SizedBox(
+                width: 380,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      window.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 24),
+
+                    Row(
+                      children: [
+                        const Text('透明度'),
+                        const Spacer(),
+                        Text(
+                          '$opacity%',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    Slider(
+                      value: opacity.toDouble(),
+                      min: 0,
+                      max: 100,
+                      divisions: 100,
+                      label: '$opacity%',
+                      onChanged: (value) {
+                        apply(value.round(), setDialogState);
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        const Text('精确设置'),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              suffixText: '%',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            onSubmitted: (text) {
+                              final value = int.tryParse(text);
+                              if (value == null) {
+                                setDialogState(
+                                  () => error = '请输入有效整数',
+                                );
+                              } else {
+                                apply(value, setDialogState);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: '应用',
+                          onPressed: () {
+                            final value =
+                                int.tryParse(controller.text);
+
+                            if (value == null) {
+                              setDialogState(
+                                () => error = '请输入有效整数',
+                              );
+                            } else {
+                              apply(value, setDialogState);
+                            }
+                          },
+                          icon: const Icon(Icons.check),
+                        ),
+                      ],
+                    ),
+
+                    if (error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        error!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 12),
+                    const Text(
+                      '提示：0% 为完全透明，100% 为完全不透明。',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton.icon(
+                  onPressed: () {
+                    try {
+                      _service.restore(window);
+                      setState(() => _opacityValues.remove(key));
+
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('已恢复窗口原始状态')),
+                      );
+                    } catch (e) {
+                      setDialogState(() => error = e.toString());
+                    }
+                  },
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text('恢复原状'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('关闭'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
   }
 }
