@@ -1,4 +1,4 @@
-﻿
+﻿ 
 #ifndef RUNNER_FLUTTER_WINDOW_H_
 #define RUNNER_FLUTTER_WINDOW_H_
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include "overlay_manager.h"
 #include "win32_window.h"
 
 class FlutterWindow : public Win32Window {
@@ -27,14 +28,20 @@ class FlutterWindow : public Win32Window {
   flutter::DartProject project_;
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
 
-  // Dart <-> C++ 通道。
+  // Dart <-> C++ hotkey channel.
   std::unique_ptr<
       flutter::MethodChannel<flutter::EncodableValue>> hotkey_channel_;
 
-  // 当前已经成功注册的热键 ID。
+  // Dart <-> C++ protection overlay channel.
+  std::unique_ptr<
+      flutter::MethodChannel<flutter::EncodableValue>> protection_channel_;
+
+  OverlayManager overlay_manager_;
+
+  // Successfully registered global hotkey IDs.
   std::vector<int> registered_hotkey_ids_;
 
-  // 最近一次注册失败时的 Windows 错误码。
+  // Last Windows error returned by RegisterHotKey.
   DWORD last_hotkey_error_ = ERROR_SUCCESS;
 
   bool RegisterHotkeys();
